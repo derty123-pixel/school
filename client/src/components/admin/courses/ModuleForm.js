@@ -1,22 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import apiClient from '../../../utils/api';
 
 // This form can be used for creating or editing a module.
 // If 'moduleData' prop is provided, it's in edit mode.
-// 'courseId' is required to associate the module with its course.
-// 'onSave' callback is called after successful save.
+// 'onSave' callback is called with the form data when submitted.
 // 'onCancel' callback to close/hide the form.
-const ModuleForm = ({ courseId, moduleData, onSave, onCancel }) => {
+// 'isProcessing' prop to disable form elements during submission.
+const ModuleForm = ({ moduleData, onSave, onCancel, isProcessing = false }) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [moduleOrder, setModuleOrder] = useState(''); // Backend might auto-assign if not provided for new
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [moduleOrder, setModuleOrder] = useState(''); 
+  const [formError, setFormError] = useState('');
 
   const isEditing = Boolean(moduleData && moduleData.id);
 
   useEffect(() => {
-    if (isEditing) {
+    if (isEditing && moduleData) {
       setTitle(moduleData.title || '');
       setDescription(moduleData.description || '');
       setModuleOrder(moduleData.module_order !== undefined ? String(moduleData.module_order) : '');
@@ -24,18 +22,17 @@ const ModuleForm = ({ courseId, moduleData, onSave, onCancel }) => {
       // Reset for new module form
       setTitle('');
       setDescription('');
-      setModuleOrder(''); // Or fetch next available order number
+      setModuleOrder(''); 
     }
+    setFormError(''); // Clear errors when moduleData changes
   }, [moduleData, isEditing]);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
-    setIsLoading(true);
-    setError(null);
+    setFormError('');
 
     if (!title.trim()) {
-        setError("Module title is required.");
-        setIsLoading(false);
+        setFormError("Module title is required.");
         return;
     }
     
@@ -43,43 +40,33 @@ const ModuleForm = ({ courseId, moduleData, onSave, onCancel }) => {
       title,
       description,
       // Only include module_order if it's explicitly set and valid
+      // If empty, backend service will auto-assign next order.
       ...(moduleOrder.trim() !== '' && !isNaN(parseInt(moduleOrder)) && { module_order: parseInt(moduleOrder) })
     };
-
-    try {
-      let response;
-      if (isEditing) {
-        response = await apiClient.put(`/admin/courses/${courseId}/modules/${moduleData.id}`, payload);
-      } else {
-        response = await apiClient.post(`/admin/courses/${courseId}/modules`, payload);
-      }
-      onSave(response.data.module || response.data); // Pass back the saved/created module
-    } catch (err) {
-      console.error("Failed to save module:", err);
-      setError(err.response?.data?.message || `Failed to save module.`);
-    } finally {
-      setIsLoading(false);
-    }
+    
+    // onSave is now expected to be an async function that handles the API call
+    onSave(payload); 
   };
   
-  const styles = {
-    formContainer: { padding: '20px', border: '1px dashed #ccc', borderRadius: '8px', marginTop: '15px', backgroundColor: '#fdfdfd' },
+  const styles = { 
+    formContainer: { padding: '20px', border: '1px dashed #ccc', borderRadius: '8px', marginTop: '15px', backgroundColor: '#fdfdfd', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' },
     formGroup: { marginBottom: '15px' },
     label: { display: 'block', marginBottom: '5px', fontWeight: 'bold' },
-    input: { width: 'calc(100% - 18px)', padding: '8px', border: '1px solid #ccc', borderRadius: '4px' },
-    textarea: { width: 'calc(100% - 18px)', padding: '8px', border: '1px solid #ccc', borderRadius: '4px', minHeight: '80px' },
-    button: { padding: '8px 15px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', marginRight: '10px' },
+    input: { width: 'calc(100% - 22px)', padding: '10px', border: '1px solid #ccc', borderRadius: '4px', boxSizing: 'border-box' },
+    textarea: { width: 'calc(100% - 22px)', padding: '10px', border: '1px solid #ccc', borderRadius: '4px', minHeight: '80px', boxSizing: 'border-box' },
+    button: { padding: '10px 18px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', marginRight: '10px', fontSize: '0.95rem' },
+    disabledButton: { backgroundColor: '#ccc', cursor: 'not-allowed' },
     error: { color: 'red', fontSize: '0.9em', marginTop: '5px'},
   };
 
 
   return (
     <div style={styles.formContainer}>
-      <h3 style={{marginTop:0}}>{isEditing ? 'Edit Module' : 'Add New Module'}</h3>
-      {error && <p style={styles.error}>{error}</p>}
+      <h3 style={{marginTop:0, marginBottom: '20px'}}>{isEditing ? 'Edit Module' : 'Add New Module'}</h3>
+      {formError && <p style={styles.error}>{formError}</p>}
       <form onSubmit={handleSubmit}>
         <div style={styles.formGroup}>
-          <label htmlFor="moduleTitle" style={styles.label}>Title</label>
+          <label htmlFor="moduleTitle" style={styles.label}>Title <span style={{color: 'red'}}>*</span></label>
           <input
             type="text"
             id="moduleTitle"
@@ -87,7 +74,7 @@ const ModuleForm = ({ courseId, moduleData, onSave, onCancel }) => {
             onChange={(e) => setTitle(e.target.value)}
             style={styles.input}
             required
-            disabled={isLoading}
+            disabled={isProcessing}
           />
         </div>
         <div style={styles.formGroup}>
@@ -97,7 +84,7 @@ const ModuleForm = ({ courseId, moduleData, onSave, onCancel }) => {
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             style={styles.textarea}
-            disabled={isLoading}
+            disabled={isProcessing}
           />
         </div>
         <div style={styles.formGroup}>
@@ -108,16 +95,16 @@ const ModuleForm = ({ courseId, moduleData, onSave, onCancel }) => {
             value={moduleOrder}
             onChange={(e) => setModuleOrder(e.target.value)}
             style={styles.input}
-            placeholder="Leave blank for auto-order"
-            disabled={isLoading}
+            placeholder="Leave blank for auto-order at the end"
+            disabled={isProcessing}
           />
         </div>
         <div>
-          <button type="submit" disabled={isLoading} style={styles.button}>
-            {isLoading ? 'Saving...' : (isEditing ? 'Update Module' : 'Create Module')}
+          <button type="submit" disabled={isProcessing} style={isProcessing ? {...styles.button, ...styles.disabledButton} : styles.button}>
+            {isProcessing ? 'Saving...' : (isEditing ? 'Update Module' : 'Create Module')}
           </button>
-          {onCancel && (
-            <button type="button" onClick={onCancel} disabled={isLoading} style={{...styles.button, backgroundColor: '#6c757d'}}>
+          {onCancel && ( // Ensure onCancel is provided to show the button
+            <button type="button" onClick={onCancel} disabled={isProcessing} style={{...styles.button, backgroundColor: '#6c757d', ...(isProcessing ? styles.disabledButton : {})}}>
               Cancel
             </button>
           )}
