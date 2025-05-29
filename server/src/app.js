@@ -7,9 +7,9 @@ const environment = require('./config/environment');
 const userRoutes = require('./modules/user_management/user.routes');
 const productCatalogRoutes = require('./modules/product_catalog/product_catalog.routes');
 const cartRoutes = require('./modules/cart/cart.routes');
+const orderRoutes = require('./modules/orders/order.routes');
 // Future modules will be imported here:
 // const courseRoutes = require('./modules/course_management/course.routes');
-// const orderRoutes = require('./modules/order_management/order.routes');
 
 // Initialize Express app
 const app = express();
@@ -32,8 +32,8 @@ app.use((req, res, next) => {
 app.use('/api', userRoutes);
 app.use('/api/catalog', productCatalogRoutes); // Mount product catalog routes under /api/catalog
 app.use('/api/cart', cartRoutes); // Mount cart routes under /api/cart
+app.use('/api/orders', orderRoutes); // Mount order routes under /api/orders
 // app.use('/api', courseRoutes);
-// app.use('/api', orderRoutes);
 
 
 // Global Error Handler (basic example)
