@@ -1,0 +1,86 @@
+# Node.js & npm/yarn specific
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json # Optional: if only yarn.lock or pnpm-lock.yaml is used
+yarn.lock         # Optional: if only package-lock.json or pnpm-lock.yaml is used
+pnpm-lock.yaml    # Optional: if only package-lock.json or yarn.lock is used
+
+# Server-specific (Node.js/Express.js)
+# Add any server-specific build outputs or logs if not covered above
+# e.g., /dist or /build if you have a TypeScript build step for the server
+
+# React specific (Create React App or similar)
+build/
+coverage/
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Common Environment files
+.env
+*.env
+
+# Log files
+logs/
+*.log
+*.log.[0-9]
+*.log.[0-9][0-9]
+*.log.[0-9][0-9][0-9]
+*.log.[0-9][0-9][0-9][0-9]
+*.log.gz
+*.log.gz.[0-9]
+*.log.gz.[0-9][0-9]
+*.log.gz.[0-9][0-9][0-9]
+*.log.gz.[0-9][0-9][0-9][0-9]
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# IDE & Editor specific
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+*~
+*.bak
+
+# Test reports
+junit.xml
+test-results/
+mochawesome-report/
+
+# PM2 specific (if used)
+pm2.pid
+pm2.log
+ecosystem.config.js # Or .json, .yml - depends on your config
+
+# Other
+*.tsbuildinfo
+.eslintcache
+.prettiercache
+.stylelintcache
+
+# If using Docker
+Dockerfile.local
+docker-compose.override.yml
+.dockerignore # If it contains sensitive paths not meant for the image itself
+
+# Sensitive files - ensure these are never committed
+credentials.json
+secrets.yml
+*.pem
+*.key
+config.prod.js # Or similar if it contains secrets
