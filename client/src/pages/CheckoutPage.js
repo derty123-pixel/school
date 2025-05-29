@@ -1,15 +1,17 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Elements } from '@stripe/react-stripe-js'; 
 import AddressForm from '../components/checkout/AddressForm';
 import OrderSummary from '../components/checkout/OrderSummary';
 import CheckoutSteps from '../components/checkout/CheckoutSteps';
+import StripePaymentForm from '../components/checkout/StripePaymentForm'; 
 import { useCart } from '../context/CartContext';
 import { useCheckout } from '../context/CheckoutContext';
 
-const CHECKOUT_STEP_CONFIG = [ // Changed from CHECKOUT_STEPS to avoid conflict
+const CHECKOUT_STEP_CONFIG = [
   { id: 'shipping', name: 'Shipping Address' },
   { id: 'billing', name: 'Billing Address' },
-  { id: 'review', name: 'Review & Place Order' },
+  { id: 'payment', name: 'Payment & Review' }, 
 ];
 
 const CheckoutPage = () => {
@@ -21,9 +23,11 @@ const CheckoutPage = () => {
     setBillingAddress, 
     toggleUseShippingForBilling,
     loadOrderSummary,
-    handlePlaceOrder, // API call action
+    preparePayment,         
+    fetchOrderStatusAfterClientPayment, // Updated action name
     resetCheckoutState,
-    clearCheckoutError,
+    clearCheckoutError, // General checkout errors
+    clearStripeError, // Stripe specific errors
   } = useCheckout();
   
   const navigate = useNavigate();
@@ -34,51 +38,50 @@ const CheckoutPage = () => {
     billingAddress, 
     useShippingForBilling, 
     orderSummary, 
-    isProcessingOrder, 
-    error: checkoutError 
+    isProcessingOrder,  // Used by fetchOrderStatusAfterClientPayment
+    isPreparingPayment, 
+    error: checkoutError, 
+    stripePromise,      
+    clientSecret,       
+    stripeError,
+    // placedOrderDetails will be available in state after fetchOrderStatusAfterClientPayment SUCCESS
   } = checkoutState;
 
-  // Load order summary from cart when component mounts or cart changes
   useEffect(() => {
     if (cartState.cartId && cartState.items.length > 0) {
       loadOrderSummary({
         items: cartState.items,
         itemCount: cartState.itemCount,
-        cartTotal: cartState.cartTotal, // This is typically the subtotal for the order
+        cartTotal: cartState.cartTotal,
         cartId: cartState.cartId,
       });
     }
-    // If cart becomes empty and we are not already past shipping (e.g. user cleared cart in another tab)
-    // and checkout process has started (e.g. currentStep is not initial or shippingAddress is set)
     if ((!cartState.items || cartState.items.length === 0) && !cartState.isLoading && currentStep !== CHECKOUT_STEP_CONFIG[0].id) {
-        // navigate('/cart'); // Or show message
-        console.warn("CheckoutPage: Cart is empty, consider redirecting or showing a message.");
+        if (currentStep !== 'confirmation' && !isProcessingOrder && !isPreparingPayment) { 
+             console.warn("CheckoutPage: Cart is empty, redirecting to cart page.");
+             navigate('/cart'); 
+        }
     }
+  }, [cartState, loadOrderSummary, currentStep, navigate, isProcessingOrder, isPreparingPayment]);
 
-  }, [cartState, loadOrderSummary, currentStep, navigate]);
-
-
-  const handleNextStep = () => {
-    const currentIndex = CHECKOUT_STEP_CONFIG.findIndex(step => step.id === currentStep);
-    if (currentIndex < CHECKOUT_STEP_CONFIG.length - 1) {
-      setCurrentStep(CHECKOUT_STEP_CONFIG[currentIndex + 1].id);
-    } else {
-      // This case should ideally be "Place Order" from review step
-      submitOrder();
+  const stablePreparePayment = useCallback(preparePayment, []); 
+  useEffect(() => {
+    if (currentStep === 'payment' && !clientSecret && !isPreparingPayment && !checkoutError && !stripeError) {
+        if (orderSummary.cartId && orderSummary.items.length > 0) {
+             console.log("CheckoutPage: Current step is 'payment', preparing payment...");
+             stablePreparePayment(cartState); 
+        } else if (!cartState.isLoading) { 
+            console.warn("CheckoutPage: Cart data not ready for payment preparation.");
+            setCurrentStep('shipping'); 
+        }
     }
-  };
+  }, [currentStep, clientSecret, isPreparingPayment, stablePreparePayment, orderSummary, cartState, checkoutError, stripeError, setCurrentStep]);
 
-  const handlePrevStep = () => {
-    const currentIndex = CHECKOUT_STEP_CONFIG.findIndex(step => step.id === currentStep);
-    if (currentIndex > 0) {
-      setCurrentStep(CHECKOUT_STEP_CONFIG[currentIndex - 1].id);
-    }
-  };
 
   const handleShippingSubmit = (addressData) => {
-    setShippingAddress(addressData); // This will also set billing if useShippingForBilling is true
+    setShippingAddress(addressData);
     if (useShippingForBilling) {
-      setCurrentStep('review'); 
+      setCurrentStep('payment'); 
     } else {
       setCurrentStep('billing');
     }
@@ -86,59 +89,56 @@ const CheckoutPage = () => {
 
   const handleBillingSubmit = (addressData) => {
     setBillingAddress(addressData);
-    setCurrentStep('review');
+    setCurrentStep('payment');
   };
 
-  const submitOrder = async () => {
-    if (!shippingAddress || (!useShippingForBilling && !billingAddress)) {
-      alert('Please complete shipping and billing information.');
-      setCurrentStep('shipping'); 
-      return;
-    }
-    if (!orderSummary.cartId) {
-        alert('Cart information is missing. Cannot place order.');
-        return;
-    }
-
-    const finalShippingAddress = shippingAddress;
-    const finalBillingAddress = useShippingForBilling ? shippingAddress : billingAddress;
-
+  const handlePaymentSuccess = async (paymentIntent) => {
+    console.log('CheckoutPage: Stripe payment successful via client!', paymentIntent);
     try {
-      const confirmedOrder = await handlePlaceOrder(
-        orderSummary.cartId, 
-        finalShippingAddress, 
-        finalBillingAddress
-      );
+      if (!orderSummary.orderId) {
+        // This should not happen if preparePayment was successful
+        throw new Error("Order ID not found after payment preparation.");
+      }
+      // Call the updated action to fetch latest order status from backend
+      const finalOrderDetails = await fetchOrderStatusAfterClientPayment(orderSummary.orderId);
       
-      // Order successfully placed and payment confirmed (simulated)
       await reloadCartAfterOrder(); // Refresh cart (should be empty or new) in CartContext
-      // resetCheckoutState(); // Reset checkout state AFTER navigation potentially
       
-      navigate(`/order-confirmation/${confirmedOrder.id}`, { 
-          state: { orderDetails: confirmedOrder } 
+      navigate(`/order-confirmation/${finalOrderDetails.id}`, { 
+          state: { orderDetails: finalOrderDetails } 
       });
-      // It's important to reset checkout state AFTER navigation or ensure OrderConfirmationPage doesn't rely on it.
-      // For a clean experience, resetCheckoutState might be better called when CheckoutPage unmounts or on successful navigation.
-      // Or, OrderConfirmationPage should not use useCheckout() hook.
-      // Let's call reset after navigation for now.
-      resetCheckoutState();
-
-
+      resetCheckoutState(); // Reset checkout state after successful navigation
     } catch (error) {
-      // Error is already set in checkoutState by handlePlaceOrder
-      console.error('CheckoutPage: Failed to place order:', error);
+      console.error('CheckoutPage: Failed to finalize order status on backend after client payment success:', error);
+      // Error is already set in checkoutState.error by fetchOrderStatusAfterClientPayment
       // Alert for immediate feedback, though error is also in state
-      alert(`Order placement failed: ${checkoutState.error || error.message}`);
+      alert(`Order finalization failed: ${checkoutState.error || error.message}`);
+    }
+  };
+
+  const handlePaymentFailure = (stripeJsError) => {
+    console.error('CheckoutPage: Stripe payment failed on client!', stripeJsError);
+    // The error (stripeJsError.message) is already set in checkoutState.stripeError 
+    // by StripePaymentForm calling setStripeError from context.
+    // No further action needed here unless specific UI changes are required on CheckoutPage itself.
+  };
+  
+  const handlePrevStep = () => {
+    const currentIndex = CHECKOUT_STEP_CONFIG.findIndex(step => step.id === currentStep);
+    // Clear Stripe-specific errors when navigating away from payment screen
+    if (currentStep === 'payment' && stripeError) {
+        clearStripeError();
+    }
+    if (currentIndex > 0) {
+      setCurrentStep(CHECKOUT_STEP_CONFIG[currentIndex - 1].id);
     }
   };
   
-  // Initial loading of cart from CartContext
-  if (cartState.isLoading && !cartState.cartId && !checkoutError) {
+  if (cartState.isLoading && !cartState.cartId && !checkoutError && !stripeError) {
       return <div style={{padding: '20px', textAlign: 'center'}}>Loading cart details...</div>;
   }
 
-  // If cart is empty after initial load (and not due to an error being displayed)
-  if (!cartState.isLoading && (!orderSummary.items || orderSummary.items.length === 0) && !checkoutError) {
+  if (!cartState.isLoading && (!orderSummary.items || orderSummary.items.length === 0) && currentStep !== 'confirmation' && !checkoutError && !stripeError && !isPreparingPayment && !isProcessingOrder) {
     return (
       <div style={{ padding: '20px', textAlign: 'center' }}>
         <h2>Your cart is empty.</h2>
@@ -148,28 +148,36 @@ const CheckoutPage = () => {
     );
   }
 
+  // Combined loading state for disabling UI elements appropriately
+  const isLoading = isPreparingPayment || isProcessingOrder;
+
 
   return (
     <div style={{ padding: '20px', maxWidth: '960px', margin: '0 auto', fontFamily: 'Arial, sans-serif' }}>
       <h1 style={{ textAlign: 'center', marginBottom: '20px' }}>Checkout</h1>
       <CheckoutSteps currentStep={currentStep} steps={CHECKOUT_STEP_CONFIG} />
 
-      {checkoutError && (
+      {checkoutError && ( // General checkout errors (e.g. from backend order creation, finalization)
         <div style={{ color: 'red', backgroundColor: '#ffe0e0', padding: '10px', marginBottom: '15px', borderRadius: '5px', textAlign: 'center' }}>
           Error: {checkoutError} 
           <button onClick={clearCheckoutError} style={{ marginLeft: '10px', background: 'none', border: '1px solid red', color: 'red', borderRadius: '3px', cursor: 'pointer' }}>Dismiss</button>
         </div>
       )}
+      {/* Stripe-specific errors (e.g. card declined) are displayed within StripePaymentForm, 
+          but also available in checkoutState.stripeError if needed here.
+          StripePaymentForm now uses its own localStripeError first.
+      */}
 
 
       <div style={{ display: 'flex', gap: '30px', flexDirection: window.innerWidth < 768 ? 'column-reverse' : 'row' }}>
-        <div style={{ flex: 2 }}> {/* Forms and review */}
+        <div style={{ flex: 2 }}> 
           {currentStep === 'shipping' && (
             <AddressForm 
               title="Shipping Address" 
               initialAddress={shippingAddress || {}}
               onSubmitAddress={handleShippingSubmit} 
-              submitButtonText={useShippingForBilling ? "Continue to Review" : "Continue to Billing"}
+              submitButtonText={useShippingForBilling ? "Continue to Payment & Review" : "Continue to Billing"}
+              disabled={isLoading}
             />
           )}
           {currentStep === 'billing' && !useShippingForBilling && (
@@ -177,43 +185,45 @@ const CheckoutPage = () => {
               title="Billing Address" 
               initialAddress={billingAddress || {}}
               onSubmitAddress={handleBillingSubmit} 
-              submitButtonText="Continue to Review"
+              submitButtonText="Continue to Payment & Review"
+              disabled={isLoading}
             />
           )}
-          {currentStep === 'review' && (
+          {currentStep === 'payment' && (
             <div style={{border: '1px solid #e0e0e0', padding: '20px', borderRadius: '8px', backgroundColor: '#f9f9f9'}}>
-              <h2 style={{marginTop:0}}>Review Your Order</h2>
-              {shippingAddress && <div><strong>Shipping Address:</strong> <pre style={{fontSize: '0.9em', background:'#eee', padding:'5px', whiteSpace: 'pre-wrap', wordBreak: 'break-all'}}>{JSON.stringify(shippingAddress, null, 2)}</pre></div>}
-              {billingAddress && !useShippingForBilling && <div style={{marginTop: '10px'}}><strong>Billing Address:</strong> <pre style={{fontSize: '0.9em', background:'#eee', padding:'5px', whiteSpace: 'pre-wrap', wordBreak: 'break-all'}}>{JSON.stringify(billingAddress, null, 2)}</pre></div>}
-              <p style={{marginTop: '20px'}}>Please review your order details and items in the summary before placing your order.</p>
-              <div style={{margin: '20px 0', padding: '15px', border: '1px dashed #ccc', textAlign:'center'}}>
-                <h4>Payment Method</h4>
-                <p>Payment gateway integration (Stripe/PayPal) will appear here. For now, click "Place Order" to simulate order creation and payment.</p>
+              <h2 style={{marginTop:0}}>Review & Pay</h2>
+              {shippingAddress && <div><strong>Shipping To:</strong> <pre style={{fontSize: '0.9em', background:'#eee', padding:'5px', whiteSpace: 'pre-wrap', wordBreak: 'break-all'}}>{JSON.stringify(shippingAddress, null, 2)}</pre></div>}
+              {billingAddress && !useShippingForBilling && <div style={{marginTop: '10px'}}><strong>Billing With:</strong> <pre style={{fontSize: '0.9em', background:'#eee', padding:'5px', whiteSpace: 'pre-wrap', wordBreak: 'break-all'}}>{JSON.stringify(billingAddress, null, 2)}</pre></div>}
+              
+              <div style={{margin: '20px 0'}}>
+                {isPreparingPayment && <p style={{textAlign: 'center', fontSize: '1.1em'}}>Preparing secure payment, please wait...</p>}
+                {!isPreparingPayment && stripeError && ( // Error during payment prep (e.g. client secret fetch)
+                     <p style={{color: 'red', textAlign: 'center'}}>Could not initialize payment form. Error: {stripeError}</p>
+                )}
+                {!isPreparingPayment && !stripeError && stripePromise && clientSecret && (
+                  <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: 'stripe' } }}>
+                    <StripePaymentForm 
+                        clientSecret={clientSecret} 
+                        onPaymentSuccess={handlePaymentSuccess}
+                        onPaymentFailure={handlePaymentFailure}
+                    />
+                  </Elements>
+                )}
+                {/* Case where payment prep is done, but clientSecret or stripePromise is missing, without specific error */}
+                {!isPreparingPayment && !stripeError && (!stripePromise || !clientSecret) && (
+                     <p style={{color: 'orange', textAlign: 'center'}}>Payment form is loading or there was an issue. Please wait or refresh.</p>
+                )}
               </div>
             </div>
           )}
 
           <div style={{ marginTop: '30px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            {currentStep !== CHECKOUT_STEP_CONFIG[0].id && (
-              <button onClick={handlePrevStep} disabled={isProcessingOrder} style={{ padding: '10px 20px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>Back</button>
+            {(currentStep === 'billing' || (currentStep === 'payment' && !isProcessingOrder)) && (
+              <button onClick={handlePrevStep} disabled={isLoading} style={{ padding: '10px 20px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>Back</button>
             )}
-            {/* Spacer if "Back" button is not shown */}
-            {currentStep === CHECKOUT_STEP_CONFIG[0].id && <div />} 
-
-            {currentStep === 'review' ? (
-              <button 
-                onClick={submitOrder} 
-                style={{ padding: '12px 25px', backgroundColor: isProcessingOrder ? '#ccc' : '#28a745', color: 'white', border: 'none', borderRadius: '5px', fontSize: '1.1em', cursor: isProcessingOrder ? 'not-allowed' : 'pointer' }}
-                disabled={isProcessingOrder || cartState.isLoading} 
-              >
-                {isProcessingOrder ? 'Placing Order...' : 'Place Order'}
-              </button>
-            ) : ( 
-              // "Continue" button is implicitly part of AddressForm submission
-              // If a step has no form, a generic "Next" button would be here.
-              // For now, AddressForm handles moving to next step.
-              null
-            )}
+            {currentStep === 'shipping' && <div />} {/* Spacer for layout consistency */}
+            
+            {/* No main "Place Order" button here anymore, it's inside StripePaymentForm */}
           </div>
            {currentStep === 'shipping' && (
              <div style={{marginTop: '20px'}}>
@@ -222,7 +232,7 @@ const CheckoutPage = () => {
                         type="checkbox" 
                         checked={useShippingForBilling}
                         onChange={(e) => toggleUseShippingForBilling(e.target.checked)}
-                        disabled={isProcessingOrder}
+                        disabled={isLoading}
                     />
                     My billing address is the same as my shipping address.
                 </label>
@@ -231,7 +241,7 @@ const CheckoutPage = () => {
         </div>
 
         <div style={{ flex: 1, minWidth: '280px' }}>
-          <OrderSummary cart={orderSummary} /> {/* Pass orderSummary from checkoutState */}
+          <OrderSummary cart={orderSummary} />
         </div>
       </div>
     </div>

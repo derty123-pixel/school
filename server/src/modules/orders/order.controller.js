@@ -9,8 +9,6 @@ class OrderController {
       return res.status(400).json({ errors: errors.array() });
     }
 
-    // req.user should be populated by 'protect' middleware
-    // req.cart should be populated by 'ensureCart' middleware
     if (!req.user || !req.user.id) {
       return res.status(401).json({ message: 'Authentication required to create an order.' });
     }
@@ -18,22 +16,21 @@ class OrderController {
       return res.status(400).json({ message: 'Your cart is empty or not found.' });
     }
 
-    const { shippingAddress, billingAddress } = req.body; // Assume these are validated by express-validator in routes
+    const { shippingAddress, billingAddress } = req.body; 
 
     try {
       const order = await orderService.createOrderFromCart(req.user.id, req.cart, shippingAddress, billingAddress);
-      // The cart ID used for this order should ideally not be used for future cart operations by client.
-      // Client should clear its stored X-Cart-ID or backend ensureCart should handle this.
-      // The UNIQUE constraint on orders.cart_id prevents reuse.
-      res.status(201).json({ message: 'Order created successfully.', order });
+      res.status(201).json({ message: 'Order created successfully, pending payment.', order });
     } catch (error) {
       console.error('Order creation controller error:', error.message);
       res.status(error.statusCode || 500).json({ message: error.message || 'An error occurred during order creation.' });
     }
   }
 
-  async confirmPayment(req, res) {
-    const errors = validationResult(req); // For param validation
+  // This endpoint is called by the client after client-side Stripe.js indicates success.
+  // Its role is now to fetch the latest order status, as webhooks are the primary source of truth for payment confirmation.
+  async handleClientPaymentSuccess(req, res) {
+    const errors = validationResult(req); 
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
     }
@@ -45,16 +42,20 @@ class OrderController {
     const isAdmin = req.user.roles && req.user.roles.includes('admin');
 
     try {
-      const updatedOrder = await orderService.confirmPayment(orderId, req.user.id, isAdmin);
-      res.status(200).json({ message: 'Payment confirmed successfully.', order: updatedOrder });
+      // The service method now just fetches the order. Webhook handles the actual confirmation.
+      const order = await orderService.getOrderStatusAfterClientPayment(orderId, req.user.id, isAdmin);
+      res.status(200).json({ 
+        message: 'Client payment reported. Current order details retrieved.', 
+        order: order 
+      });
     } catch (error) {
-      console.error(`Confirm payment controller error (Order ID: ${orderId}):`, error.message);
-      res.status(error.statusCode || 500).json({ message: error.message || 'Failed to confirm payment.' });
+      console.error(`Client payment success handling error (Order ID: ${orderId}):`, error.message);
+      res.status(error.statusCode || 500).json({ message: error.message || 'Failed to retrieve order status after client payment report.' });
     }
   }
 
   async getOrderById(req, res) {
-    const errors = validationResult(req); // For param validation
+    const errors = validationResult(req); 
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
     }
@@ -75,7 +76,7 @@ class OrderController {
   }
 
   async getMyOrders(req, res) {
-    const errors = validationResult(req); // For query validation
+    const errors = validationResult(req); 
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
     }

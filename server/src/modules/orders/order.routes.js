@@ -15,10 +15,8 @@ router.post(
   protect, // Ensures req.user is populated
   ensureCart, // Ensures req.cart is populated (and handles guest/user cart logic)
   [
-    // Validate address data. For MVP, assume simple structure.
-    // In a real app, these would be more detailed (street, city, zip, country etc.)
     body('shippingAddress', 'Shipping address is required').notEmpty().isObject(),
-    body('shippingAddress.street', 'Shipping street is required').optional().isString().trim().escape(), // Make specific fields optional or required as needed
+    body('shippingAddress.street', 'Shipping street is required').optional().isString().trim().escape(), 
     body('shippingAddress.city', 'Shipping city is required').optional().isString().trim().escape(),
     body('shippingAddress.postalCode', 'Shipping postal code is required').optional().isString().trim().escape(),
     body('shippingAddress.country', 'Shipping country is required').optional().isString().trim().escape(),
@@ -33,13 +31,13 @@ router.post(
 );
 
 // @route   POST /api/orders/:orderId/confirm-payment
-// @desc    Simulate payment confirmation for an order
+// @desc    Client reports successful payment interaction. Fetches latest order status.
 // @access  Private (Authenticated User who owns order or Admin)
 router.post(
-  '/:orderId/confirm-payment',
+  '/:orderId/confirm-payment', // Path remains the same
   protect,
   [param('orderId', 'Order ID must be a valid UUID').isUUID()],
-  orderController.confirmPayment
+  orderController.handleClientPaymentSuccess // Controller method name updated
 );
 
 // @route   GET /api/orders/:orderId
@@ -64,19 +62,5 @@ router.get(
   ],
   orderController.getMyOrders
 );
-
-// Example Admin route to get all orders (not part of this specific subtask's core requirements but for completeness)
-// router.get(
-//   '/admin/all',
-//   protect,
-//   authorize('admin'), // Assuming an authorize middleware exists
-//   [
-//     query('page', 'Page must be a positive integer').optional().isInt({ gt: 0 }).toInt(),
-//     query('limit', 'Limit must be a positive integer').optional().isInt({ gt: 0 }).toInt(),
-//     query('userId', 'User ID must be a valid UUID if provided').optional().isUUID(),
-//     query('status', 'Status must be a valid order status string').optional().isString().trim().escape(),
-//   ],
-//   orderController.getAllOrdersAsAdmin // This controller method would need to be created
-// );
 
 module.exports = router;

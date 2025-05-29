@@ -26,14 +26,13 @@ class OrderService {
       await client.query('BEGIN');
 
       const orderNumber = generateOrderNumber();
-      const orderStatus = 'pending_payment'; // Initial status
+      // Initial status is 'pending_payment' until webhook confirms Stripe payment.
+      const orderStatus = 'pending_payment'; 
 
-      // Calculate totals from cart items (using price_at_addition)
       const subtotal = cart.items.reduce((sum, item) => sum + (parseFloat(item.price_at_addition) * item.quantity), 0);
-      // For MVP, shipping, taxes, discounts are placeholders or 0
-      const shippingCost = 0.00;
-      const taxesTotal = 0.00;
-      const discountTotal = 0.00;
+      const shippingCost = 0.00; // Placeholder for MVP
+      const taxesTotal = 0.00;   // Placeholder for MVP
+      const discountTotal = 0.00; // Placeholder for MVP
       const orderTotal = subtotal + shippingCost + taxesTotal - discountTotal;
 
       const orderQuery = `
@@ -42,8 +41,8 @@ class OrderService {
           shipping_address, billing_address, order_status
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-        RETURNING id, order_number, order_status, created_at, order_total;
-      `;
+        RETURNING id, order_number, order_status, created_at, order_total; 
+      `; // Return minimal needed fields initially
       const orderValues = [
         orderNumber, userId, cart.id, orderTotal, subtotal, shippingCost, taxesTotal, discountTotal,
         shippingAddress, billingAddress, orderStatus
@@ -51,9 +50,7 @@ class OrderService {
       const orderResult = await client.query(orderQuery, orderValues);
       const newOrder = orderResult.rows[0];
 
-      // Create order items from cart items
       for (const item of cart.items) {
-        // Fetch current product name and SKU for historical record
         const productDetailsResult = await client.query('SELECT name, sku FROM products WHERE id = $1', [item.product_id]);
         const productNameAtOrder = productDetailsResult.rows[0]?.name || 'Unknown Product';
         const productSkuAtOrder = productDetailsResult.rows[0]?.sku || 'N/A';
@@ -71,14 +68,9 @@ class OrderService {
         ]);
       }
       
-      // Optional: Update shopping_cart status to 'converted_to_order' or similar
-      // For now, the UNIQUE constraint on orders.cart_id prevents reuse.
-      // await client.query("UPDATE shopping_carts SET status = 'converted' WHERE id = $1", [cart.id]);
-
-
       await client.query('COMMIT');
-      
-      // Return the full order details after successful creation
+      // After successful creation, fetch the full order details to return
+      // This ensures consistency, especially if any triggers or defaults modified the order.
       return this.getOrderById(newOrder.id, userId, true); // true to bypass ownership check for this internal call
 
     } catch (error) {
@@ -96,48 +88,30 @@ class OrderService {
     }
   }
 
-  async confirmPayment(orderId, userId, isAdmin = false) {
-    const client = await db.pool.connect();
+  // Refactored: This method is now primarily for client to poll/get latest status after client-side payment success.
+  // It does NOT change order status itself. Webhook is the source of truth for payment-related status changes.
+  async getOrderStatusAfterClientPayment(orderId, userId, isAdmin = false) {
+    const client = await db.pool.connect(); // Use a client for consistent read if needed, or direct pool query
     try {
-      await client.query('BEGIN');
-
-      const orderResult = await client.query('SELECT * FROM orders WHERE id = $1;', [orderId]);
-      if (orderResult.rows.length === 0) {
-        throw { statusCode: 404, message: 'Order not found.' };
-      }
-      const order = orderResult.rows[0];
-
-      if (!isAdmin && order.user_id !== userId) {
-        throw { statusCode: 403, message: 'You are not authorized to update this order.' };
-      }
-
-      if (order.order_status !== 'pending_payment') {
-        throw { statusCode: 400, message: `Order status is '${order.order_status}', cannot confirm payment.` };
-      }
-
-      // Simulate payment success
-      const newStatus = 'confirmed'; // Or 'processing'
-      const updatedOrderResult = await client.query(
-        'UPDATE orders SET order_status = $1, payment_status = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3 RETURNING *;',
-        [newStatus, 'succeeded', orderId] // Example payment_status
-      );
+      // We are just fetching the order. The webhook will have updated its status if payment succeeded.
+      const order = await this.getOrderById(orderId, userId, isAdmin); // Uses existing getOrderById
       
-      // Future: Deduct inventory here
-      // Future: Trigger notifications (email, etc.)
-
-      await client.query('COMMIT');
-      // Fetch full order details after payment confirmation
-      return this.getOrderById(updatedOrderResult.rows[0].id, userId, isAdmin);
+      // Log client-side payment success indication (optional)
+      console.log(`Client reported successful payment interaction for order ${orderId}. Current status from DB: ${order.order_status}`);
+      
+      // No status update here. Just return the order as is.
+      return order;
 
     } catch (error) {
-      await client.query('ROLLBACK');
+      // getOrderById already throws if not found or not authorized
       if (error.statusCode) throw error;
-      console.error('Error confirming payment:', error);
-      throw { statusCode: 500, message: 'Failed to confirm payment.' };
+      console.error('Error in getOrderStatusAfterClientPayment:', error);
+      throw { statusCode: 500, message: 'Failed to retrieve order status after client payment.' };
     } finally {
-      client.release();
+        if (client) client.release();
     }
   }
+
 
   async getOrderById(orderId, userId, isAdmin = false) {
     const query = `
@@ -159,7 +133,8 @@ class OrderService {
       WHERE o.id = $1
       GROUP BY o.id;
     `;
-    const { rows } = await db.query(query, [orderId]);
+    // db.query can be used if not part of a larger transaction managed by a client
+    const { rows } = await db.query(query, [orderId]); 
     if (rows.length === 0) {
       throw { statusCode: 404, message: 'Order not found.' };
     }
