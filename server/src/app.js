@@ -9,8 +9,10 @@ const productCatalogRoutes = require('./modules/product_catalog/product_catalog.
 const cartRoutes = require('./modules/cart/cart.routes');
 const orderRoutes = require('./modules/orders/order.routes');
 const paymentRoutes = require('./modules/payments/payment.routes');
+const courseAdminRoutes = require('./modules/courses/course.admin.routes');
+const coursePublicRoutes = require('./modules/courses/course.public.routes');
+const courseStudentRoutes = require('./modules/courses/course.student.routes');
 // Future modules will be imported here:
-// const courseRoutes = require('./modules/course_management/course.routes');
 
 // Initialize Express app
 const app = express();
@@ -45,7 +47,9 @@ app.use('/api/catalog', productCatalogRoutes); // Mount product catalog routes u
 app.use('/api/cart', cartRoutes); // Mount cart routes under /api/cart
 app.use('/api/orders', orderRoutes); // Mount order routes under /api/orders
 app.use('/api/payments', paymentRoutes); // Mount payment routes under /api/payments
-// app.use('/api', courseRoutes);
+app.use('/api/admin/courses', courseAdminRoutes); // Mount course admin routes
+app.use('/api/courses', coursePublicRoutes); // Mount public course routes
+app.use('/api/courses', courseStudentRoutes); // Mount student course routes (paths like /enrolled, /:courseId/enroll make them distinct)
 
 
 // Global Error Handler (basic example)
