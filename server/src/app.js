@@ -6,6 +6,7 @@ const environment = require('./config/environment');
 // Import routes
 const userRoutes = require('./modules/user_management/user.routes');
 const productCatalogRoutes = require('./modules/product_catalog/product_catalog.routes');
+const cartRoutes = require('./modules/cart/cart.routes');
 // Future modules will be imported here:
 // const courseRoutes = require('./modules/course_management/course.routes');
 // const orderRoutes = require('./modules/order_management/order.routes');
@@ -30,6 +31,7 @@ app.use((req, res, next) => {
 // So if we mount it at /api, routes will be /api/auth/register, /api/users/me etc.
 app.use('/api', userRoutes);
 app.use('/api/catalog', productCatalogRoutes); // Mount product catalog routes under /api/catalog
+app.use('/api/cart', cartRoutes); // Mount cart routes under /api/cart
 // app.use('/api', courseRoutes);
 // app.use('/api', orderRoutes);
 
