@@ -38,6 +38,65 @@ router.post(
 // @route   GET /api/users/me
 // @desc    Get current logged-in user's profile
 // @access  Private
+
+/**
+ * @swagger
+ * /users/me:
+ *   get:
+ *     summary: Get current user's profile
+ *     tags: [Users]
+ *     description: Retrieves the profile information for the currently authenticated user.
+ *     security:
+ *       - bearerAuth: [] # Indicates that this endpoint uses bearer token authentication
+ *     responses:
+ *       '200':
+ *         description: Successfully retrieved user profile.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 id:
+ *                   type: string
+ *                   format: uuid
+ *                   example: 'a1b2c3d4-e5f6-7890-1234-567890abcdef'
+ *                 firstName:
+ *                   type: string
+ *                   example: 'John'
+ *                 lastName:
+ *                   type: string
+ *                   example: 'Doe'
+ *                 email:
+ *                   type: string
+ *                   format: email
+ *                   example: 'john.doe@example.com'
+ *                 roles:
+ *                   type: array
+ *                   items:
+ *                     type: string
+ *                   example: ['student', 'instructor']
+ *                 # Add other relevant user fields here
+ *       '401':
+ *         description: Unauthorized - No token provided or token is invalid.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: 'Not authorized, no token'
+ *       '404':
+ *         description: User not found (should not typically happen if token is valid and user exists).
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: 'User not found' 
+ */
 router.get(
   '/users/me',
   protect, // This middleware verifies JWT and attaches user to req

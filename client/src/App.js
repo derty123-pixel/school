@@ -1,5 +1,37 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation, useNavigationType, createRoutesFromChildren, matchRoutes } from 'react-router-dom';
+import * as Sentry from "@sentry/react";
+
+// Initialize Sentry
+// TODO: Replace with actual DSN from environment variable or configuration
+const SENTRY_DSN_FRONTEND = 'SENTRY_DSN_PLACEHOLDER_FRONTEND';
+if (SENTRY_DSN_FRONTEND !== 'SENTRY_DSN_PLACEHOLDER_FRONTEND') {
+  Sentry.init({
+    dsn: SENTRY_DSN_FRONTEND,
+    integrations: [
+      // new Sentry.BrowserTracing(), // Default BrowserTracing
+      Sentry.reactRouterV6BrowserTracingIntegration({
+        useEffect: React.useEffect,
+        useLocation,
+        useNavigationType,
+        createRoutesFromChildren,
+        matchRoutes,
+      }),
+      Sentry.replayIntegration(),
+    ],
+    // Performance Monitoring
+    tracesSampleRate: 1.0, // Capture 100% of browser transactions. Adjust in production.
+    // Session Replay
+    replaysSessionSampleRate: 0.1, // This sets the sample rate at 10%. You may want to change it to 100% while in development and then sample at a lower rate in production.
+    replaysOnErrorSampleRate: 1.0, // If you're not already sampling the entire session, sample the session when an error occurs.
+    environment: process.env.NODE_ENV || 'development',
+    release: `client@0.1.0`, // Assuming version "0.1.0" from client/package.json
+  });
+  console.log("Sentry initialized for frontend");
+} else {
+  console.warn("Sentry DSN not provided. Sentry is not initialized for frontend.");
+}
+
 
 // --- Contexts (Assuming these exist and are set up) ---
 // import { AuthProvider, useAuth } from './context/AuthContext';
@@ -103,7 +135,7 @@ const MyCoursesPage = () => <div><h1>My Enrolled Courses</h1><p>List of courses 
 const LessonView = () => <div><h1>Lesson View</h1><p>Viewing a lesson...</p> (Full component not implemented in this step) </div>;
 
 
-function App() {
+function AppInternal() { // Renamed original App to AppInternal
   return (
     <AuthProvider> {/* Mock AuthProvider */}
       <Router>
@@ -161,6 +193,15 @@ function App() {
         </div>
       </Router>
     </AuthProvider>
+  );
+}
+
+// Wrap AppInternal with Sentry.ErrorBoundary
+function App() {
+  return (
+    <Sentry.ErrorBoundary fallback={<p>An error has occurred. Our team has been notified.</p>}>
+      <AppInternal />
+    </Sentry.ErrorBoundary>
   );
 }
 

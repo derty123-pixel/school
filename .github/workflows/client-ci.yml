@@ -1,0 +1,63 @@
+name: Client CI
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths: # Only run if client code changes
+      - 'client/**'
+      - '.github/workflows/client-ci.yml'
+  pull_request:
+    branches:
+      - main
+    paths: # Only run if client code changes
+      - 'client/**'
+      - '.github/workflows/client-ci.yml'
+
+jobs:
+  build-and-test:
+    name: Build and Test Client
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+
+    defaults:
+      run:
+        working-directory: ./client
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linters
+        # Assuming 'npm run lint' exists in client/package.json
+        # CRA apps usually have this set up.
+        run: npm run lint --if-present
+
+      - name: Run tests
+        # Assuming 'npm test' exists in client/package.json
+        # CRA apps usually have this set up for Jest.
+        run: npm test --if-present
+        env:
+          CI: true # Important for Create React App tests
+
+      - name: Build application
+        # Assuming 'npm run build' exists in client/package.json
+        # CRA apps have this for production builds.
+        run: npm run build
+        # env:
+        #   REACT_APP_SENTRY_DSN: ${{ secrets.SENTRY_DSN_CLIENT }} # Example
+        #   REACT_APP_API_URL: ${{ secrets.API_URL }} # Example
