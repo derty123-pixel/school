@@ -9,14 +9,14 @@ CREATE TABLE Assessments (
     time_limit_minutes INTEGER, -- Nullable, if no time limit
     passing_score_percentage DECIMAL(5, 2) CHECK (passing_score_percentage >= 0 AND passing_score_percentage <= 100), -- e.g., 70.00
     status VARCHAR(50) NOT NULL DEFAULT 'draft', -- e.g., 'draft', 'published', 'archived'
-    
+
     -- Settings like shuffle_questions, reveal_correct_answers, max_attempts can be stored in a JSONB column
     settings JSONB DEFAULT '{
         "shuffle_questions": false,
         "shuffle_answer_options": false,
         "reveal_correct_answers": "never",
         "max_attempts": 1,
-        "show_feedback_after": "grading" 
+        "show_feedback_after": "grading"
     }',
     -- Example values for settings:
     -- reveal_correct_answers: 'never', 'after_submission', 'after_grading', 'after_due_date'
@@ -25,7 +25,7 @@ CREATE TABLE Assessments (
 
     created_by UUID NOT NULL, -- REFERENCES Users(id), -- Assuming Users table exists
     updated_by UUID NOT NULL, -- REFERENCES Users(id),
-    
+
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

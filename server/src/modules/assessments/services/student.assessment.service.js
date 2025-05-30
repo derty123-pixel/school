@@ -10,13 +10,13 @@ const StudentAssessmentService = {
    */
   async getAssessmentDetailsForStudent(assessmentId) {
     const query = `
-      SELECT 
-        id, course_id, title, description, time_limit_minutes, 
+      SELECT
+        id, course_id, title, description, time_limit_minutes,
         (SELECT COUNT(*) FROM Questions WHERE assessment_id = Assessments.id) AS question_count,
         settings ->> 'max_attempts' AS max_attempts, -- Extract from JSONB
-        passing_score_percentage 
-      FROM Assessments 
-      WHERE id = $1 AND status = 'published'; 
+        passing_score_percentage
+      FROM Assessments
+      WHERE id = $1 AND status = 'published';
     `;
     // Note: 'status' check ensures students only see published assessments.
     // The 'settings' are assumed to be stored in a JSONB column.
@@ -61,15 +61,15 @@ const StudentAssessmentService = {
       // 2. Count existing completed or in-progress attempts by the student for this assessment
       //    (We might only count 'completed' ones if we allow resuming 'in-progress' ones without new attempt)
       const attemptsQuery = `
-        SELECT COUNT(*) as attempt_count, MAX(attempt_number) as max_attempt_number 
-        FROM StudentSubmissions 
+        SELECT COUNT(*) as attempt_count, MAX(attempt_number) as max_attempt_number
+        FROM StudentSubmissions
         WHERE student_id = $1 AND assessment_id = $2;
         -- Add AND status != 'aborted' if aborted attempts don't count
       `;
       const { rows: attemptRows } = await client.query(attemptsQuery, [studentId, assessmentId]);
       const currentAttemptCount = parseInt(attemptRows[0].attempt_count, 10);
       const lastAttemptNumber = parseInt(attemptRows[0].max_attempt_number || 0, 10);
-      
+
       if (max_attempts > 0 && currentAttemptCount >= max_attempts) {
         // More robust check: ensure all previous attempts are 'completed' or 'graded'
         // If there's an 'in-progress' one, maybe return that instead of creating a new one.
@@ -86,7 +86,7 @@ const StudentAssessmentService = {
         RETURNING *;
       `;
       const { rows: submissionRows } = await client.query(insertSubmissionQuery, [studentId, assessmentId, newAttemptNumber]);
-      
+
       await client.query('COMMIT');
       logger.info(`Student ${studentId} started attempt ${newAttemptNumber} for assessment ${assessmentId}. Submission ID: ${submissionRows[0].id}`);
       return submissionRows[0];
@@ -126,16 +126,16 @@ const StudentAssessmentService = {
 
     // 2. Fetch questions for the assessment, excluding sensitive answer details
     const questionsQuery = `
-      SELECT 
+      SELECT
         q.id, q.assessment_id, q.question_text, q.question_type, q.points, q.order_in_assessment,
         COALESCE(
           (SELECT json_agg(
             json_build_object('id', ao.id, 'option_text', ao.option_text, 'order_in_question', ao.order_in_question)
            ORDER BY ao.order_in_question ASC)
-           FROM AnswerOptions ao 
-           WHERE ao.question_id = q.id), 
+           FROM AnswerOptions ao
+           WHERE ao.question_id = q.id),
           '[]'::json
-        ) AS options 
+        ) AS options
         -- Note: We are NOT selecting ao.is_correct or ao.feedback here for student view during attempt
       FROM Questions q
       WHERE q.assessment_id = $1
@@ -202,14 +202,14 @@ const StudentAssessmentService = {
         const upsertQuery = `
           INSERT INTO StudentAnswers (submission_id, question_id, chosen_option_id, answer_text, created_at, updated_at)
           VALUES ($1, $2, $3, $4, NOW(), NOW())
-          ON CONFLICT (submission_id, question_id) 
-          DO UPDATE SET 
-            chosen_option_id = EXCLUDED.chosen_option_id, 
+          ON CONFLICT (submission_id, question_id)
+          DO UPDATE SET
+            chosen_option_id = EXCLUDED.chosen_option_id,
             answer_text = EXCLUDED.answer_text,
             updated_at = NOW()
           RETURNING *;
         `;
-        
+
         let chosenOptionId = answer.chosenOptionId || null;
         let answerText = answer.answerText || null;
 
@@ -225,7 +225,7 @@ const StudentAssessmentService = {
                  // throw new Error(`Answer text is required for question type ${questionType} (Question ID: ${answer.questionId}).`);
             }
         }
-        
+
         const values = [submissionId, answer.questionId, chosenOptionId, answerText];
         const { rows: ansRows } = await client.query(upsertQuery, values);
         savedAnswers.push(ansRows[0]);
@@ -262,8 +262,8 @@ const StudentAssessmentService = {
 
       // 1. Verify submission, get started_at and assessment_id
       const subCheckQuery = `
-        SELECT id, assessment_id, status, started_at 
-        FROM StudentSubmissions 
+        SELECT id, assessment_id, status, started_at
+        FROM StudentSubmissions
         WHERE id = $1 AND student_id = $2;
       `;
       const { rows: subRows } = await client.query(subCheckQuery, [submissionId, studentId]);
@@ -284,9 +284,9 @@ const StudentAssessmentService = {
 
       // Get all questions and their correct answers for this assessment
       const questionsAndAnswersQuery = `
-        SELECT 
-          q.id AS question_id, 
-          q.points AS question_points, 
+        SELECT
+          q.id AS question_id,
+          q.points AS question_points,
           q.question_type,
           ao.id AS correct_option_id,
           sa.chosen_option_id AS student_chosen_option_id,
@@ -314,9 +314,9 @@ const StudentAssessmentService = {
             }
             // Note: 'multiple-choice-multiple', 'short-answer', 'essay' require manual grading or more complex logic.
             // For this basic auto-grading, they will score 0 unless manually updated later.
-            
+
             const updateStudentAnswerQuery = `
-              UPDATE StudentAnswers 
+              UPDATE StudentAnswers
               SET awarded_points = $1, is_correct = $2, updated_at = NOW()
               WHERE id = $3;
             `;
@@ -324,9 +324,9 @@ const StudentAssessmentService = {
             totalAwardedPoints += awardedForThisAnswer;
         }
       }
-      
+
       const percentageScore = totalPossiblePoints > 0 ? (totalAwardedPoints / totalPossiblePoints) * 100 : 0;
-      
+
       // Fetch passing score percentage from Assessment
       const assessmentDetailsQuery = 'SELECT passing_score_percentage FROM Assessments WHERE id = $1;';
       const {rows: assessmentRows} = await client.query(assessmentDetailsQuery, [submission.assessment_id]);
@@ -336,9 +336,9 @@ const StudentAssessmentService = {
       // 2. Update submission status, completed_at, time_spent, score
       const updateSubmissionQuery = `
         UPDATE StudentSubmissions
-        SET 
-          status = 'completed', 
-          completed_at = $1, 
+        SET
+          status = 'completed',
+          completed_at = $1,
           time_spent_seconds = $2,
           score = $3,
           percentage_score = $4,
@@ -363,7 +363,7 @@ const StudentAssessmentService = {
       await client.query('ROLLBACK');
       logger.error(`Error completing assessment attempt ${submissionId}: ${error.message}`, { stack: error.stack });
       if (error.message.includes('not found') || error.message.includes('not owned') || error.message.includes('not currently in progress')) {
-        throw error; 
+        throw error;
       }
       throw new Error('Failed to complete assessment attempt.');
     } finally {
@@ -379,17 +379,17 @@ const StudentAssessmentService = {
    */
   async getMySubmissions(studentId, filters = {}) {
     let query = `
-      SELECT 
-        ss.id as submission_id, 
-        ss.assessment_id, 
+      SELECT
+        ss.id as submission_id,
+        ss.assessment_id,
         a.title as assessment_title,
-        a.course_id, 
-        ss.status, 
-        ss.score, 
+        a.course_id,
+        ss.status,
+        ss.score,
         ss.percentage_score,
         ss.is_passing,
         ss.attempt_number,
-        ss.started_at, 
+        ss.started_at,
         ss.completed_at,
         ss.graded_at
       FROM StudentSubmissions ss
@@ -434,8 +434,8 @@ const StudentAssessmentService = {
   async getStudentSubmissionResults(submissionId, studentId) {
     // 1. Fetch submission and assessment details (including settings for revealing answers)
     const submissionQuery = `
-      SELECT 
-        ss.id as submission_id, ss.student_id, ss.assessment_id, ss.status, ss.score, 
+      SELECT
+        ss.id as submission_id, ss.student_id, ss.assessment_id, ss.status, ss.score,
         ss.percentage_score, ss.is_passing, ss.attempt_number,
         ss.started_at, ss.completed_at, ss.graded_at, ss.time_spent_seconds, ss.overall_feedback,
         a.title AS assessment_title, a.passing_score_percentage AS assessment_passing_score,
@@ -470,10 +470,10 @@ const StudentAssessmentService = {
     // 2. Fetch student's answers along with question details
     // Conditionally include correct answer information based on canRevealCorrectAnswers
     let answersQuery = `
-      SELECT 
-        sa.id AS student_answer_id, sa.question_id, sa.chosen_option_id, sa.answer_text, 
+      SELECT
+        sa.id AS student_answer_id, sa.question_id, sa.chosen_option_id, sa.answer_text,
         sa.awarded_points, sa.is_correct AS student_answer_is_correct, sa.grader_feedback,
-        q.question_text, q.question_type, q.points AS question_max_points, 
+        q.question_text, q.question_type, q.points AS question_max_points,
         q.feedback_general AS question_feedback_general,
         q.feedback_correct AS question_feedback_correct, -- Shown if student got it right & settings allow
         q.feedback_incorrect AS question_feedback_incorrect, -- Shown if student got it wrong & settings allow
@@ -483,7 +483,7 @@ const StudentAssessmentService = {
       answersQuery += `
         -- All options for the question, including which ones are correct
         (SELECT json_agg(
-            json_build_object('id', ao.id, 'option_text', ao.option_text, 'is_correct', ao.is_correct, 'feedback', ao.feedback) 
+            json_build_object('id', ao.id, 'option_text', ao.option_text, 'is_correct', ao.is_correct, 'feedback', ao.feedback)
             ORDER BY ao.order_in_question ASC
           )
          FROM AnswerOptions ao
@@ -493,15 +493,15 @@ const StudentAssessmentService = {
       answersQuery += `
         -- Only the student's chosen option text if multiple choice, or limited info
         (SELECT json_agg(
-            json_build_object('id', ao.id, 'option_text', ao.option_text) 
+            json_build_object('id', ao.id, 'option_text', ao.option_text)
             ORDER BY ao.order_in_question ASC
           )
          FROM AnswerOptions ao
-         WHERE ao.question_id = q.id 
-           AND (sa.chosen_option_id = ao.id OR q.question_type NOT LIKE 'multiple-choice%') 
+         WHERE ao.question_id = q.id
+           AND (sa.chosen_option_id = ao.id OR q.question_type NOT LIKE 'multiple-choice%')
            -- The above condition is tricky. We might just want to show all options without marking correct,
            -- or only the chosen one. Let's show all options but without is_correct if not revealing.
-        ) AS all_question_options_student_view 
+        ) AS all_question_options_student_view
         -- Simplified: just show all options without is_correct flag if not revealing fully
         -- (SELECT json_agg(json_build_object('id', ao.id, 'option_text', ao.option_text) ORDER BY ao.order_in_question ASC)
         --  FROM AnswerOptions ao WHERE ao.question_id = q.id) AS all_question_options_student_view
@@ -509,20 +509,20 @@ const StudentAssessmentService = {
        // Simpler: Let's refine to show all options but without is_correct if canRevealCorrectAnswers is false.
       // This was getting too complex. The SELECT below will be simplified.
     }
-    
+
     // Refined answersQuery for simplicity based on canRevealCorrectAnswers logic
     answersQuery = `
-      SELECT 
-        sa.id AS student_answer_id, sa.question_id, sa.chosen_option_id, sa.answer_text, 
+      SELECT
+        sa.id AS student_answer_id, sa.question_id, sa.chosen_option_id, sa.answer_text,
         sa.awarded_points, sa.is_correct AS student_answer_is_correct, sa.grader_feedback,
-        q.question_text, q.question_type, q.points AS question_max_points, 
+        q.question_text, q.question_type, q.points AS question_max_points,
         q.feedback_general AS question_feedback_general,
-        CASE 
+        CASE
             WHEN sa.is_correct = TRUE THEN q.feedback_correct
             WHEN sa.is_correct = FALSE THEN q.feedback_incorrect
-            ELSE NULL 
+            ELSE NULL
         END as question_specific_outcome_feedback,
-        (SELECT 
+        (SELECT
             json_agg(
                 json_build_object('id', ao.id, 'option_text', ao.option_text ${canRevealCorrectAnswers ? ", 'is_correct', ao.is_correct, 'feedback', ao.feedback" : ""})
                 ORDER BY ao.order_in_question ASC

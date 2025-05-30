@@ -15,13 +15,13 @@ const AdminAssessmentController = {
 
     try {
       // Assuming req.user.id is populated by auth middleware
-      const userId = req.user?.id; 
+      const userId = req.user?.id;
       if (!userId) {
         // This should ideally be caught by auth middleware, but as a safeguard:
         logger.warn('User ID not found in request for createAssessment. Ensure auth middleware is active.');
         return res.status(401).json({ message: 'Unauthorized: User ID not available.' });
       }
-      
+
       const assessmentData = req.body; // { course_id, title, description, ... }
       const assessment = await AssessmentService.create(assessmentData, userId);
       res.status(201).json(assessment);
@@ -208,7 +208,7 @@ const AdminAssessmentController = {
       if (!feedback) {
         return res.status(400).json({ message: 'Feedback text is required.' });
       }
-      
+
       // Ensure 'overall_feedback' column exists in StudentSubmissions table via a migration
       // For now, this will fail if the column doesn't exist.
       const updatedSubmission = await AssessmentService.addOverallSubmissionFeedback(submissionId, feedback, adminUserId);

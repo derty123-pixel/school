@@ -6,7 +6,7 @@ const { protect, authorize } = require('../../../middlewares/auth.middleware'); 
 
 // Create a new router instance.
 // Important: Set mergeParams: true to access :assessmentId from the parent router
-const router = express.Router({ mergeParams: true }); 
+const router = express.Router({ mergeParams: true });
 
 // Middleware for all question routes: ensure user is authenticated and authorized
 // This can be more specific if needed (e.g. different roles for different actions)

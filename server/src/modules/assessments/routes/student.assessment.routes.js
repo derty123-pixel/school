@@ -42,7 +42,7 @@ router.post(
 
 // GET /api/student/assessments/submissions/:submissionId/questions - Get questions for an active submission
 router.get(
-  '/submissions/:submissionId/questions', 
+  '/submissions/:submissionId/questions',
   // Note: Path changed slightly to avoid conflict if we had /:assessmentId/submissions/:submissionId later
   // This makes submissionId the primary resource identifier here.
   validateSubmissionIdParam,

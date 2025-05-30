@@ -20,6 +20,10 @@ const courseStudentRoutes = require('./modules/courses/course.student.routes');
 // Assessment module routes
 const adminAssessmentRoutes = require('./modules/assessments/routes/admin.assessment.routes.js');
 const studentAssessmentRoutes = require('./modules/assessments/routes/student.assessment.routes.js');
+// Discount module routes
+const adminDiscountRoutes = require('./modules/discounts/routes/admin.discount.routes.js');
+const adminCouponRoutes = require('./modules/discounts/routes/admin.coupon.routes.js');
+const userCouponRoutes = require('./modules/discounts/routes/user.coupon.routes.js');
 // Future modules will be imported here:
 
 // Initialize Express app
@@ -70,6 +74,12 @@ app.use('/api/courses', courseStudentRoutes); // Mount student course routes (pa
 app.use('/api/admin/assessments', adminAssessmentRoutes);
 // Mount assessment student routes
 app.use('/api/student/assessments', studentAssessmentRoutes);
+// Mount discount admin routes
+app.use('/api/admin/discounts', adminDiscountRoutes);
+// Mount coupon admin routes
+app.use('/api/admin/coupons', adminCouponRoutes);
+// Mount coupon user routes
+app.use('/api/user/coupons', userCouponRoutes);
 
 
 // Global Error Handler (basic example)
@@ -82,15 +92,15 @@ app.use(Sentry.Handlers.errorHandler());
 // Global Error Handler (basic example)
 // This should be defined after all other app.use() and routes calls
 app.use((err, req, res, next) => {
-  logger.error(`Global Error Handler: ${err.message}`, { 
-    stack: err.stack, 
-    status: err.status, 
+  logger.error(`Global Error Handler: ${err.message}`, {
+    stack: err.stack,
+    status: err.status,
     statusCode: err.statusCode,
     sentryId: res.sentry // Capture Sentry event ID if available
   });
   const statusCode = err.statusCode || 500;
   const message = err.message || 'Something went wrong on the server.';
-  
+
   res.status(statusCode).json({
     status: 'error',
     statusCode,

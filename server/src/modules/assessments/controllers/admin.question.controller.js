@@ -39,7 +39,7 @@ const AdminQuestionController = {
   async getQuestionsForAssessment(req, res, next) {
     try {
       const { assessmentId } = req.params;
-      
+
       // Optional: Check if assessment exists
       const assessment = await AssessmentService.findById(assessmentId);
       if (!assessment) {
@@ -61,7 +61,7 @@ const AdminQuestionController = {
   async getQuestionById(req, res, next) {
     try {
       // assessmentId in params might be used for auth/context, questionId for lookup
-      const { questionId } = req.params; 
+      const { questionId } = req.params;
       const question = await QuestionService.findQuestionById(questionId);
       if (!question) {
         return res.status(404).json({ message: 'Question not found.' });
@@ -86,7 +86,7 @@ const AdminQuestionController = {
     try {
       const { questionId } = req.params;
       const updates = req.body;
-      
+
       // Optional: Check if question exists and user has permission
       const existingQuestion = await QuestionService.findQuestionById(questionId);
       if (!existingQuestion) {

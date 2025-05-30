@@ -8,7 +8,7 @@ const router = express.Router();
 
 // Middleware to ensure user is authenticated and is an admin/instructor for all routes in this file
 // Adjust roles as per your application's authorization scheme (e.g., ['admin', 'instructor'])
-router.use(protect); 
+router.use(protect);
 // router.use(authorize(['admin', 'instructor'])); // Uncomment and adjust if you have role-based authorization
 
 /**
@@ -38,7 +38,7 @@ const validateAssessmentId = [
 router.post(
   '/',
   authorize(['admin', 'instructor']), // Example role protection
-  validateAssessment, 
+  validateAssessment,
   AdminAssessmentController.createAssessment
 );
 
@@ -61,7 +61,7 @@ router.get(
 router.put(
   '/:assessmentId',
   authorize(['admin', 'instructor']),
-  validateAssessmentId, 
+  validateAssessmentId,
   validateAssessment, // Reuse validation rules for updatable fields
   AdminAssessmentController.updateAssessment
 );

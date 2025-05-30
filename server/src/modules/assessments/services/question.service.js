@@ -36,9 +36,9 @@ const QuestionService = {
       await client.query('BEGIN');
 
       const questionQuery = `
-        INSERT INTO Questions 
+        INSERT INTO Questions
           (assessment_id, question_text, question_type, points, order_in_assessment, feedback_general, feedback_correct, feedback_incorrect)
-        VALUES 
+        VALUES
           ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING *;
       `;
@@ -92,12 +92,12 @@ const QuestionService = {
   async findQuestionsByAssessmentId(assessmentId) {
     // This query fetches questions and aggregates their options into a JSON array.
     const query = `
-      SELECT 
-        q.*, 
+      SELECT
+        q.*,
         COALESCE(
-          (SELECT json_agg(ao.* ORDER BY ao.order_in_question ASC) 
-           FROM AnswerOptions ao 
-           WHERE ao.question_id = q.id), 
+          (SELECT json_agg(ao.* ORDER BY ao.order_in_question ASC)
+           FROM AnswerOptions ao
+           WHERE ao.question_id = q.id),
           '[]'::json
         ) AS options
       FROM Questions q
@@ -120,12 +120,12 @@ const QuestionService = {
    */
   async findQuestionById(questionId) {
     const query = `
-      SELECT 
-        q.*, 
+      SELECT
+        q.*,
         COALESCE(
-          (SELECT json_agg(ao.* ORDER BY ao.order_in_question ASC) 
-           FROM AnswerOptions ao 
-           WHERE ao.question_id = q.id), 
+          (SELECT json_agg(ao.* ORDER BY ao.order_in_question ASC)
+           FROM AnswerOptions ao
+           WHERE ao.question_id = q.id),
           '[]'::json
         ) AS options
       FROM Questions q
@@ -177,12 +177,12 @@ const QuestionService = {
       if (feedback_general !== undefined) { questionUpdateFields.push(`feedback_general = $${qParamCount++}`); questionUpdateValues.push(feedback_general); }
       if (feedback_correct !== undefined) { questionUpdateFields.push(`feedback_correct = $${qParamCount++}`); questionUpdateValues.push(feedback_correct); }
       if (feedback_incorrect !== undefined) { questionUpdateFields.push(`feedback_incorrect = $${qParamCount++}`); questionUpdateValues.push(feedback_incorrect); }
-      
+
       let updatedQuestion = null;
       if (questionUpdateFields.length > 0) {
         questionUpdateValues.push(questionId);
         const updateQuestionQuery = `
-          UPDATE Questions 
+          UPDATE Questions
           SET ${questionUpdateFields.join(', ')}
           WHERE id = $${qParamCount}
           RETURNING *;
@@ -204,7 +204,7 @@ const QuestionService = {
         }
         updatedQuestion = currentQuestionRows[0];
       }
-      
+
       // Delete existing options for this question
       await client.query('DELETE FROM AnswerOptions WHERE question_id = $1;', [questionId]);
 

@@ -95,7 +95,7 @@ router.post(
  *               properties:
  *                 message:
  *                   type: string
- *                   example: 'User not found' 
+ *                   example: 'User not found'
  */
 router.get(
   '/users/me',

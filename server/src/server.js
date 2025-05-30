@@ -37,8 +37,8 @@ async function main() {
     }
 
     // Require app and db after environment and Sentry are set up
-    const app = require('./app'); 
-    const db = require('./config/database'); 
+    const app = require('./app');
+    const db = require('./config/database');
 
     const PORT = environment.port || 3001;
 

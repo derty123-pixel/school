@@ -28,9 +28,9 @@ const AssessmentService = {
     } = assessmentData;
 
     const query = `
-      INSERT INTO Assessments 
+      INSERT INTO Assessments
         (course_id, title, description, time_limit_minutes, passing_score_percentage, status, settings, created_by, updated_by)
-      VALUES 
+      VALUES
         ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *;
     `;
@@ -116,7 +116,7 @@ const AssessmentService = {
   async update(assessmentId, updates, userId) {
     // Destructure allowed fields for update to prevent unwanted updates
     const { title, description, time_limit_minutes, passing_score_percentage, status, settings } = updates;
-    
+
     // Build the query dynamically based on provided updates
     const fields = [];
     const values = [];
@@ -128,7 +128,7 @@ const AssessmentService = {
     if (passing_score_percentage !== undefined) { fields.push(`passing_score_percentage = $${paramCount++}`); values.push(passing_score_percentage); }
     if (status !== undefined) { fields.push(`status = $${paramCount++}`); values.push(status); }
     if (settings !== undefined) { fields.push(`settings = $${paramCount++}`); values.push(settings); }
-    
+
     if (fields.length === 0) {
       // No fields to update, just fetch the current record or throw error
       logger.warn(`No fields to update for assessment ${assessmentId} by user ${userId}.`);
@@ -142,7 +142,7 @@ const AssessmentService = {
     values.push(assessmentId); // For the WHERE clause
 
     const query = `
-      UPDATE Assessments 
+      UPDATE Assessments
       SET ${fields.join(', ')}
       WHERE id = $${paramCount}
       RETURNING *;
@@ -187,7 +187,7 @@ const AssessmentService = {
     // This query assumes a Users table exists with at least id, firstName, lastName, email
     // Adjust JOIN and selected fields if your Users table is different.
     const query = `
-      SELECT 
+      SELECT
         ss.id as submission_id,
         ss.student_id,
         u.first_name || ' ' || u.last_name AS student_name, -- Concatenate names
@@ -201,7 +201,7 @@ const AssessmentService = {
         ss.completed_at,
         ss.graded_at
       FROM StudentSubmissions ss
-      JOIN Users u ON ss.student_id = u.id 
+      JOIN Users u ON ss.student_id = u.id
       WHERE ss.assessment_id = $1
       ORDER BY ss.started_at DESC;
     `;
@@ -224,8 +224,8 @@ const AssessmentService = {
   async getDetailedSubmission(submissionId) {
     // This is a more complex query to gather all necessary details for review/grading.
     const submissionQuery = `
-      SELECT 
-        ss.id as submission_id, ss.student_id, ss.assessment_id, ss.status, ss.score, 
+      SELECT
+        ss.id as submission_id, ss.student_id, ss.assessment_id, ss.status, ss.score,
         ss.percentage_score, ss.is_passing, ss.attempt_number,
         ss.started_at, ss.completed_at, ss.graded_at, ss.time_spent_seconds,
         a.title AS assessment_title, a.passing_score_percentage AS assessment_passing_score,
@@ -237,14 +237,14 @@ const AssessmentService = {
     `;
 
     const answersQuery = `
-      SELECT 
-        sa.id AS student_answer_id, sa.question_id, sa.chosen_option_id, sa.answer_text, 
+      SELECT
+        sa.id AS student_answer_id, sa.question_id, sa.chosen_option_id, sa.answer_text,
         sa.awarded_points, sa.is_correct AS student_answer_is_correct,
-        q.question_text, q.question_type, q.points AS question_max_points, 
+        q.question_text, q.question_type, q.points AS question_max_points,
         q.feedback_general, q.feedback_correct AS question_feedback_correct, q.feedback_incorrect AS question_feedback_incorrect,
         -- Aggregate correct answer options for display to grader
-        (SELECT json_agg(json_build_object('id', cao.id, 'option_text', cao.option_text)) 
-         FROM AnswerOptions cao 
+        (SELECT json_agg(json_build_object('id', cao.id, 'option_text', cao.option_text))
+         FROM AnswerOptions cao
          WHERE cao.question_id = q.id AND cao.is_correct = TRUE) AS correct_options,
         -- Aggregate all options for the question for display
         (SELECT json_agg(json_build_object('id', ao.id, 'option_text', ao.option_text, 'is_correct', ao.is_correct, 'feedback', ao.feedback) ORDER BY ao.order_in_question ASC)
@@ -255,7 +255,7 @@ const AssessmentService = {
       WHERE sa.submission_id = $1
       ORDER BY q.order_in_assessment ASC;
     `;
-    
+
     const client = await db.pool.connect();
     try {
       const { rows: submissionRows } = await client.query(submissionQuery, [submissionId]);
@@ -266,7 +266,7 @@ const AssessmentService = {
 
       const { rows: answerRows } = await client.query(answersQuery, [submissionId]);
       submissionDetails.answers = answerRows;
-      
+
       return submissionDetails;
     } catch (error) {
       logger.error(`Error fetching detailed submission ${submissionId}: ${error.message}`, { stack: error.stack });
@@ -293,9 +293,9 @@ const AssessmentService = {
 
       // 1. Update the specific student answer
       const updateAnswerQuery = `
-        UPDATE StudentAnswers 
-        SET 
-          awarded_points = $1, 
+        UPDATE StudentAnswers
+        SET
+          awarded_points = $1,
           -- is_correct might be manually set or derived based on points vs max_points for the question
           -- For simplicity, if points > 0, consider it 'correct-ish' or leave as is from auto-grade
           -- is_correct = ($1 > 0), -- This is a simplification, might need more nuance
@@ -322,8 +322,8 @@ const AssessmentService = {
 
       // 2. Recalculate total score for the submission
       const sumScoresQuery = `
-        SELECT COALESCE(SUM(awarded_points), 0) as current_total_score 
-        FROM StudentAnswers 
+        SELECT COALESCE(SUM(awarded_points), 0) as current_total_score
+        FROM StudentAnswers
         WHERE submission_id = $1;
       `;
       const { rows: sumRows } = await client.query(sumScoresQuery, [submissionId]);
@@ -331,8 +331,8 @@ const AssessmentService = {
 
       // 3. Get total possible points for the assessment to calculate percentage
       const assessmentInfoQuery = `
-        SELECT 
-          a.id as assessment_id, 
+        SELECT
+          a.id as assessment_id,
           a.passing_score_percentage,
           SUM(q.points) as total_possible_points
         FROM Assessments a
@@ -348,15 +348,15 @@ const AssessmentService = {
       const assessmentInfo = assessmentInfoRows[0];
       const totalPossiblePoints = parseFloat(assessmentInfo.total_possible_points);
       const passingScorePercentage = assessmentInfo.passing_score_percentage ? parseFloat(assessmentInfo.passing_score_percentage) : null;
-      
+
       const percentageScore = totalPossiblePoints > 0 ? (newTotalScore / totalPossiblePoints) * 100 : 0;
       const isPassing = passingScorePercentage !== null ? percentageScore >= passingScorePercentage : null;
 
       // 4. Update the StudentSubmissions table
       const updateSubmissionQuery = `
-        UPDATE StudentSubmissions 
-        SET 
-          score = $1, 
+        UPDATE StudentSubmissions
+        SET
+          score = $1,
           percentage_score = $2,
           is_passing = $3,
           status = 'graded', -- Mark as graded if not already, or keep current if only partial grading
@@ -373,7 +373,7 @@ const AssessmentService = {
         adminUserId,
         submissionId
       ]);
-      
+
       await client.query('COMMIT');
       logger.info(`Answer ${studentAnswerId} in submission ${submissionId} graded by ${adminUserId}. New score: ${newTotalScore}.`);
       return updatedSubmissionRows[0]; // Return the updated submission
@@ -385,12 +385,12 @@ const AssessmentService = {
       client.release();
     }
   },
-  
+
   // Placeholder for addOverallSubmissionFeedback - could update a new 'overall_feedback' text column in StudentSubmissions
   async addOverallSubmissionFeedback(submissionId, feedback, adminUserId) {
     const query = `
       UPDATE StudentSubmissions
-      SET overall_feedback = $1, updated_at = NOW(), graded_by = $2, graded_at = NOW() 
+      SET overall_feedback = $1, updated_at = NOW(), graded_by = $2, graded_at = NOW()
       WHERE id = $3
       RETURNING *;
     `;

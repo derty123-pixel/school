@@ -28,7 +28,7 @@ async function fetchSecretsFromAWS() {
     // console.warn(`AWS Secrets Manager: SecretString for ${AWS_SECRET_ID} is empty.`);
     // return null;
     // --- END HYPOTHETICAL SDK USAGE ---
-    
+
     // For this conceptual illustration, let's simulate a fetch:
     if (process.env.SIMULATE_AWS_SECRET_FETCH_SUCCESS === 'true') {
       console.log(`[Conceptual] Successfully fetched secrets from AWS Secrets Manager for ${AWS_SECRET_ID}.`);
@@ -48,7 +48,7 @@ async function fetchSecretsFromAWS() {
       // In production, if fetching fails, it might be a critical issue.
       // Depending on the secret, you might want to throw the error and halt startup.
       // For now, we'll allow fallback to .env/environment variables.
-      // throw error; 
+      // throw error;
     }
     return null;
   }
@@ -62,11 +62,11 @@ async function initializeEnvironment() {
   const environment = {
     nodeEnv: NODE_ENV,
     port: process.env.PORT || 3001,
-    
+
     // Secrets: Prefer Secrets Manager, then .env/process.env, then defaults
     jwtSecret: secretsFromManager?.JWT_SECRET || process.env.JWT_SECRET,
     jwtExpiresIn: process.env.JWT_EXPIRES_IN || '1h',
-    
+
     db: {
       user: process.env.DB_USER, // Typically not highly secret, can be env var
       host: process.env.DB_HOST, // Typically not highly secret, can be env var
@@ -74,11 +74,11 @@ async function initializeEnvironment() {
       password: secretsFromManager?.DB_PASSWORD || process.env.DB_PASSWORD, // Highly secret
       port: process.env.DB_PORT || 5432,
     },
-    
-    defaultStudentRoleId: secretsFromManager?.DEFAULT_STUDENT_ROLE_ID || 
-                          process.env.DEFAULT_STUDENT_ROLE_ID || 
+
+    defaultStudentRoleId: secretsFromManager?.DEFAULT_STUDENT_ROLE_ID ||
+                          process.env.DEFAULT_STUDENT_ROLE_ID ||
                           'a1b2c3d4-e5f6-7890-1234-567890abcdef', // Default fallback
-    
+
     // Sentry DSN might also come from Secrets Manager or directly from env var
     sentryDsn: secretsFromManager?.SENTRY_DSN_SERVER || process.env.SENTRY_DSN_SERVER,
 

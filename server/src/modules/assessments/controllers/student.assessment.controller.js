@@ -44,7 +44,7 @@ const StudentAssessmentController = {
       }
 
       const submission = await StudentAssessmentService.startAssessmentAttempt(assessmentId, studentId);
-      res.status(201).json({ 
+      res.status(201).json({
         message: 'Assessment attempt started successfully.',
         submissionId: submission.id,
         attemptNumber: submission.attempt_number,
@@ -68,7 +68,7 @@ const StudentAssessmentController = {
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
     }
-    
+
     try {
       const { submissionId } = req.params;
       const studentId = req.user?.id;
@@ -130,7 +130,7 @@ const StudentAssessmentController = {
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
     }
-    
+
     try {
       const { submissionId } = req.params;
       const studentId = req.user?.id;
@@ -141,9 +141,9 @@ const StudentAssessmentController = {
       }
 
       const updatedSubmission = await StudentAssessmentService.completeStudentAssessmentAttempt(submissionId, studentId);
-      res.status(200).json({ 
-        message: 'Assessment attempt completed successfully.', 
-        submission: updatedSubmission 
+      res.status(200).json({
+        message: 'Assessment attempt completed successfully.',
+        submission: updatedSubmission
       });
     } catch (error) {
       logger.error(`Student completeAssessmentAttempt error (submissionId: ${req.params.submissionId}): ${error.message}`, { stack: error.stack, userId: req.user?.id });
@@ -165,7 +165,7 @@ const StudentAssessmentController = {
         logger.warn('User ID not found in request for listMySubmissions.');
         return res.status(401).json({ message: 'Unauthorized: User ID not available.' });
       }
-      
+
       const filters = req.query; // e.g., { course_id: '...', assessment_id: '...' }
       const submissions = await StudentAssessmentService.getMySubmissions(studentId, filters);
       res.status(200).json(submissions);
