@@ -26,8 +26,10 @@ const adminCouponRoutes = require('./modules/discounts/routes/admin.coupon.route
 const userCouponRoutes = require('./modules/discounts/routes/user.coupon.routes.js');
 // Inventory module routes
 const adminInventoryRoutes = require('./modules/inventory/routes/admin.inventory.routes.js');
-// Student Lesson routes (for courses)
+// Student Lesson routes (for courses) - for viewing lesson content like video
 const studentLessonRoutes = require('./modules/courses/routes/student.lesson.routes.js');
+// Student Progress routes (for tracking lesson/course progress)
+const studentProgressRoutes = require('./modules/progress/routes/student.progress.routes.js');
 // Future modules will be imported here:
 
 // Initialize Express app
@@ -88,6 +90,8 @@ app.use('/api/user/coupons', userCouponRoutes);
 app.use('/api/admin/inventory', adminInventoryRoutes);
 // Mount student lesson routes (could also be nested under student course routes if those exist)
 app.use('/api/student/lessons', studentLessonRoutes);
+// Mount student progress routes
+app.use('/api/student/progress', studentProgressRoutes);
 
 
 // Global Error Handler (basic example)
