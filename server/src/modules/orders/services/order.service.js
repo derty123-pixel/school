@@ -1,6 +1,7 @@
 // server/src/modules/orders/services/order.service.js
 const db = require('../../../config/database');
 const logger = require('../../../config/logger');
+const InventoryService = require('../../inventory/services/inventory.service'); // Import InventoryService
 
 const OrderService = {
   /**
@@ -36,11 +37,32 @@ const OrderService = {
     try {
       await client.query('BEGIN');
 
-      // 1. Calculate subtotal from items
+      // --- Pre-Order Creation: Stock Check & Reservation ---
+      // This step needs current inventory versions for each product.
+      // Assuming orderData.items includes [{ course_id, quantity, current_inventory_version }]
+      // The current_inventory_version would be fetched by the client/controller just before finalizing order.
+      for (const item of items) {
+        if (!item.course_id || item.quantity <= 0 || item.current_inventory_version === undefined) {
+          throw new Error(`Invalid item data for stock reservation: course_id, quantity, and current_inventory_version are required for ${item.course_id || 'unknown item'}.`);
+        }
+        try {
+          logger.info(`Attempting to decrement stock for product ${item.course_id} by ${item.quantity} (version: ${item.current_inventory_version}) within order transaction.`);
+          await InventoryService.decrementStockForOrder(item.course_id, item.quantity, item.current_inventory_version, client);
+        } catch (inventoryError) {
+          // Prepend product ID to the error message for better context if not already there
+          const message = inventoryError.message.includes(item.course_id) ? inventoryError.message : `Product ${item.course_id}: ${inventoryError.message}`;
+          throw new Error(message); // This will be caught by the main catch and trigger a rollback
+        }
+      }
+      logger.info(`All stock checks and decrements successful for order by user ${userId}.`);
+
+
+      // 1. Calculate subtotal from items (already validated quantity and price type in stock check loop implicitly if price also part of item)
       let subtotal = 0;
       for (const item of items) {
+         // Re-validate item structure for subtotal calculation, though some checks might be redundant if done before stock check.
         if (typeof item.price_at_purchase !== 'number' || typeof item.quantity !== 'number' || item.price_at_purchase < 0 || item.quantity <= 0) {
-          throw new Error('Invalid item price or quantity.');
+          throw new Error('Invalid item price or quantity for subtotal calculation.');
         }
         subtotal += item.price_at_purchase * item.quantity;
       }

@@ -24,6 +24,8 @@ const studentAssessmentRoutes = require('./modules/assessments/routes/student.as
 const adminDiscountRoutes = require('./modules/discounts/routes/admin.discount.routes.js');
 const adminCouponRoutes = require('./modules/discounts/routes/admin.coupon.routes.js');
 const userCouponRoutes = require('./modules/discounts/routes/user.coupon.routes.js');
+// Inventory module routes
+const adminInventoryRoutes = require('./modules/inventory/routes/admin.inventory.routes.js');
 // Future modules will be imported here:
 
 // Initialize Express app
@@ -80,6 +82,8 @@ app.use('/api/admin/discounts', adminDiscountRoutes);
 app.use('/api/admin/coupons', adminCouponRoutes);
 // Mount coupon user routes
 app.use('/api/user/coupons', userCouponRoutes);
+// Mount inventory admin routes
+app.use('/api/admin/inventory', adminInventoryRoutes);
 
 
 // Global Error Handler (basic example)
